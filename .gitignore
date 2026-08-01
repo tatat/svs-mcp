@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Local scratch space (SV scripting manual mirror, experiments)
+tmp/
+
+# Machine-local Claude Code state
+.claude/settings.local.json
+.claude/worktrees/
+
+.DS_Store
