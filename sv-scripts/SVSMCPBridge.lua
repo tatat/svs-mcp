@@ -714,6 +714,151 @@ local function handleCreateGroup(params)
   return { group = refIndex, name = ref:getTarget():getName() }
 end
 
+-- params: track, group?, notes: array of {index, lyrics?, pitch?, onset?,
+-- duration?} (onset absolute). Returns a fresh snapshot of the affected
+-- range, since time edits can re-sort the group and shift indices.
+local function handleUpdateNotes(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  if type(params.notes) ~= "table" or #params.notes == 0 then
+    error("No notes provided", 0)
+  end
+
+  -- Resolve all note objects before touching anything: applying a time
+  -- change may re-sort the group and invalidate onset-order indices.
+  local targets = {}
+  for _, edit in ipairs(params.notes) do
+    local i = edit.index
+    if type(i) ~= "number" or i < 1 or i > group:getNumNotes() or i % 1 ~= 0 then
+      error("Note " .. tostring(i) .. " does not exist (group has " ..
+        group:getNumNotes() .. " note(s))", 0)
+    end
+    table.insert(targets, { note = group:getNote(i), edit = edit })
+  end
+
+  project:newUndoRecord()
+
+  local minOnset, maxEnd
+  for _, target in ipairs(targets) do
+    local note, edit = target.note, target.edit
+    if edit.lyrics ~= nil then
+      note:setLyrics(edit.lyrics)
+    end
+    if edit.pitch ~= nil then
+      note:setPitch(edit.pitch)
+    end
+    if edit.onset ~= nil or edit.duration ~= nil then
+      local onset = note:getOnset()
+      if edit.onset ~= nil then
+        onset = edit.onset - timeOffset
+      end
+      local duration = edit.duration or note:getDuration()
+      note:setTimeRange(onset, duration)
+    end
+    local absOnset = note:getOnset() + timeOffset
+    local absEnd = note:getEnd() + timeOffset
+    if minOnset == nil or absOnset < minOnset then minOnset = absOnset end
+    if maxEnd == nil or absEnd > maxEnd then maxEnd = absEnd end
+  end
+
+  local notes = {}
+  for i = 1, group:getNumNotes() do
+    local note = group:getNote(i)
+    if note:getOnset() + timeOffset < maxEnd and note:getEnd() + timeOffset > minOnset then
+      table.insert(notes, noteToTable(note, i, timeOffset))
+    end
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    updatedCount = #params.notes,
+    totalNotes = group:getNumNotes(),
+    notes = notes
+  }
+end
+
+-- params: track, group?, indexes: array of 1-based note indices.
+local function handleDeleteNotes(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  if type(params.indexes) ~= "table" or #params.indexes == 0 then
+    error("No note indexes provided", 0)
+  end
+
+  local seen = {}
+  for _, i in ipairs(params.indexes) do
+    if type(i) ~= "number" or i < 1 or i > group:getNumNotes() or i % 1 ~= 0 then
+      error("Note " .. tostring(i) .. " does not exist (group has " ..
+        group:getNumNotes() .. " note(s))", 0)
+    end
+    if seen[i] then
+      error("Duplicate note index " .. i, 0)
+    end
+    seen[i] = true
+  end
+
+  -- Delete from the highest index down so lower indices stay valid.
+  local sorted = { table.unpack(params.indexes) }
+  table.sort(sorted, function(a, b) return a > b end)
+
+  project:newUndoRecord()
+  for _, i in ipairs(sorted) do
+    group:removeNote(i)
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    deletedCount = #sorted,
+    totalNotes = group:getNumNotes()
+  }
+end
+
+-- params: track, group?, startIndex, lyrics: array of strings. Assigns the
+-- lyrics to consecutive notes starting at startIndex.
+local function handleSetLyrics(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  local start = params.startIndex
+  local lyrics = params.lyrics
+  if type(lyrics) ~= "table" or #lyrics == 0 then
+    error("No lyrics provided", 0)
+  end
+  if type(start) ~= "number" or start < 1 or start % 1 ~= 0 then
+    error("Invalid startIndex " .. tostring(start), 0)
+  end
+  local lastIndex = start + #lyrics - 1
+  if lastIndex > group:getNumNotes() then
+    error("Lyrics run past the last note: startIndex " .. start .. " + " ..
+      #lyrics .. " syllable(s) needs note " .. lastIndex .. " but the group has " ..
+      group:getNumNotes() .. " note(s)", 0)
+  end
+
+  project:newUndoRecord()
+  for k, lyric in ipairs(lyrics) do
+    group:getNote(start + k - 1):setLyrics(lyric)
+  end
+
+  local notes = {}
+  for i = start, lastIndex do
+    table.insert(notes, noteToTable(group:getNote(i), i, timeOffset))
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    updatedCount = #lyrics,
+    totalNotes = group:getNumNotes(),
+    notes = notes
+  }
+end
+
 -- params: name?. Returns the new 1-based track index.
 local function handleAddTrack(params)
   local project = SV:getProject()
@@ -732,6 +877,9 @@ local handlers = {
   get_time_axis = handleGetTimeAxis,
   get_notes = handleGetNotes,
   insert_notes = handleInsertNotes,
+  update_notes = handleUpdateNotes,
+  delete_notes = handleDeleteNotes,
+  set_lyrics = handleSetLyrics,
   get_phonemes = handleGetPhonemes,
   create_group = handleCreateGroup,
   add_track = handleAddTrack

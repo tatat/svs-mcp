@@ -1,18 +1,18 @@
-/** Note reading and insertion tools. */
+/** Note reading, insertion, editing and deletion; track/group creation. */
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { BridgeClient } from "../bridge.js";
+import { musicalToBlick, noteValueToBlick, parsePitch } from "../time.js";
 import {
-  blickToMusical,
-  blickToNoteValue,
-  formatPitch,
-  musicalToBlick,
-  noteValueToBlick,
-  parsePitch,
-  type TimeSignature,
-} from "../time.js";
+  fail,
+  fetchTimeSignatures,
+  formatNote,
+  groupSchema,
+  ok,
+  trackSchema,
+  type NotesResult,
+} from "./common.js";
 
 const positionSchema = z
   .object({
@@ -29,51 +29,9 @@ const noteValueDescription =
   'Note value: a fraction of a whole note like "1/4", "1/8", dotted "1/8.", ' +
   'triplet "1/12", "3/16", or a number meaning that many quarter notes.';
 
-interface BridgeNote {
-  index: number;
-  lyrics: string;
-  phonemes: string;
-  pitch: number;
-  onset: number;
-  duration: number;
-}
-
-interface NotesResult {
-  totalNotes: number;
-  notes: BridgeNote[];
-  group?: number;
-  groupName?: string;
-  createdGroup?: boolean;
-  insertedCount?: number;
-}
-
-function formatNote(note: BridgeNote, signatures: TimeSignature[]) {
-  return {
-    index: note.index,
-    lyrics: note.lyrics,
-    ...(note.phonemes !== "" && { phonemes: note.phonemes }),
-    pitch: formatPitch(note.pitch),
-    midiPitch: note.pitch,
-    position: blickToMusical(note.onset, signatures).display,
-    duration: blickToNoteValue(note.duration),
-    onsetBlick: note.onset,
-    durationBlick: note.duration,
-  };
-}
-
-function ok(data: unknown): CallToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-}
-
-function fail(error: unknown): CallToolResult {
-  const message = error instanceof Error ? error.message : String(error);
-  return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-}
-
-async function fetchTimeSignatures(bridge: BridgeClient): Promise<TimeSignature[]> {
-  const axis = (await bridge.request("get_time_axis")) as { timeSignatures: TimeSignature[] };
-  return axis.timeSignatures;
-}
+const pitchSchema = z
+  .union([z.string(), z.number()])
+  .describe('Pitch as a note name like "C4"/"F#3"/"Bb4" or a MIDI number (C4=60)');
 
 export function registerNoteTools(server: McpServer, bridge: BridgeClient): void {
   server.registerTool(
@@ -81,9 +39,8 @@ export function registerNoteTools(server: McpServer, bridge: BridgeClient): void
     {
       description:
         "Add a new track to the current Synthesizer V Studio project and return " +
-        "its 1-based track index. Note: a fresh track starts without a singer; " +
-        "create a group (create_group) and have the user assign a singer to it " +
-        "in the SV UI before the notes will be audible.",
+        "its 1-based track index. New tracks and groups inherit SV's default " +
+        "singer; if no singer is configured, the user must pick one in the SV UI.",
       inputSchema: {
         name: z.string().optional().describe("Optional name for the new track"),
       },
@@ -106,10 +63,11 @@ export function registerNoteTools(server: McpServer, bridge: BridgeClient): void
       description:
         "Create a new empty note group on a track and return its group index. " +
         "In SV Studio 2 the singer is assigned per group, so this is the usual " +
-        "first step before insert_notes when no suitable group exists yet. " +
-        "The user may still need to pick a singer for the new group in the SV UI.",
+        "first step before insert_notes when no suitable group exists yet " +
+        "(insert_notes also auto-creates a group when the track has none). " +
+        "The group inherits SV's default singer.",
       inputSchema: {
-        track: z.number().int().min(1).describe("Track index, 1-based"),
+        track: trackSchema,
         name: z.string().optional().describe("Optional name for the new group"),
       },
     },
@@ -132,21 +90,12 @@ export function registerNoteTools(server: McpServer, bridge: BridgeClient): void
       description:
         "List the notes of a track in the current Synthesizer V Studio project. " +
         "Track indices are 1-based (see get_project_info). Note indices are ordered by " +
-        "onset and SHIFT whenever notes are inserted or deleted, so always re-read " +
-        "before editing. Positions are formatted as measure.beat (both 1-based); " +
-        "`phonemes` is only present when a user override is set on the note.",
+        "onset and SHIFT whenever notes are inserted, deleted or moved, so always " +
+        "re-read before editing. Positions are formatted as measure.beat (both " +
+        "1-based); `phonemes` is only present when a user override is set on the note.",
       inputSchema: {
-        track: z.number().int().min(1).describe("Track index, 1-based"),
-        group: z
-          .number()
-          .int()
-          .min(1)
-          .optional()
-          .describe(
-            "Group index within the track (see get_project_info `groups`). " +
-              "Defaults to the first non-main group (the singing one); falls " +
-              "back to the main group only when no other group exists.",
-          ),
+        track: trackSchema,
+        group: groupSchema,
         fromMeasure: z
           .number()
           .int()
@@ -198,26 +147,13 @@ export function registerNoteTools(server: McpServer, bridge: BridgeClient): void
         "note; use \"+\" to continue a multi-syllable English word. Returns a snapshot " +
         "of all notes overlapping the inserted range, with fresh indices.",
       inputSchema: {
-        track: z.number().int().min(1).describe("Track index, 1-based"),
-        group: z
-          .number()
-          .int()
-          .min(1)
-          .optional()
-          .describe(
-            "Group index within the track (see get_project_info `groups`). " +
-              "Defaults to the first non-main group; when the track has none, " +
-              "a new group is created automatically. AVOID group 1 (main): in " +
-              "SV Studio 2 the singer is assigned per group and main-group " +
-              "notes are not synthesized.",
-          ),
+        track: trackSchema,
+        group: groupSchema,
         notes: z
           .array(
             z.object({
               lyrics: z.string().describe('Lyric for this note (e.g. "ら", "-", "sing")'),
-              pitch: z
-                .union([z.string(), z.number()])
-                .describe('Pitch as a note name like "C4"/"F#3"/"Bb4" or a MIDI number (C4=60)'),
+              pitch: pitchSchema,
               start: positionSchema.optional().describe(
                 "Start position. Omit to place right after the previous note in this call.",
               ),
@@ -259,6 +195,92 @@ export function registerNoteTools(server: McpServer, bridge: BridgeClient): void
           totalNotes: result.totalNotes,
           notesInAffectedRange: result.notes.map((note) => formatNote(note, signatures)),
         });
+      } catch (error) {
+        return fail(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "update_notes",
+    {
+      description:
+        "Edit existing notes by their current onset-order index (from get_notes). " +
+        "Only the provided fields change. Moving a note in time can re-sort the " +
+        "group, so use the returned snapshot (fresh indices) for any follow-up " +
+        "edits instead of the old indices. One undo step.",
+      inputSchema: {
+        track: trackSchema,
+        group: groupSchema,
+        notes: z
+          .array(
+            z.object({
+              index: z.number().int().min(1).describe("Current note index (see get_notes)"),
+              lyrics: z.string().optional().describe("New lyric"),
+              pitch: pitchSchema.optional(),
+              start: positionSchema.optional().describe("New start position"),
+              duration: z
+                .union([z.string(), z.number()])
+                .optional()
+                .describe(noteValueDescription),
+            }),
+          )
+          .min(1)
+          .describe("Edits to apply"),
+      },
+    },
+    async ({ track, group, notes }) => {
+      try {
+        const signatures = await fetchTimeSignatures(bridge);
+        const converted = notes.map((edit) => ({
+          index: edit.index,
+          ...(edit.lyrics !== undefined && { lyrics: edit.lyrics }),
+          ...(edit.pitch !== undefined && { pitch: parsePitch(edit.pitch) }),
+          ...(edit.start !== undefined && { onset: musicalToBlick(edit.start, signatures) }),
+          ...(edit.duration !== undefined && { duration: noteValueToBlick(edit.duration) }),
+        }));
+        const result = (await bridge.request("update_notes", {
+          track,
+          ...(group !== undefined && { group }),
+          notes: converted,
+        })) as NotesResult;
+        return ok({
+          group: result.group,
+          groupName: result.groupName,
+          updatedCount: result.updatedCount,
+          totalNotes: result.totalNotes,
+          notesInAffectedRange: result.notes.map((note) => formatNote(note, signatures)),
+        });
+      } catch (error) {
+        return fail(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_notes",
+    {
+      description:
+        "Delete notes by their current onset-order indices (from get_notes). " +
+        "Remaining notes are renumbered afterwards, so re-read with get_notes " +
+        "before further edits. One undo step.",
+      inputSchema: {
+        track: trackSchema,
+        group: groupSchema,
+        indexes: z
+          .array(z.number().int().min(1))
+          .min(1)
+          .describe("Note indices to delete (duplicates rejected)"),
+      },
+    },
+    async ({ track, group, indexes }) => {
+      try {
+        const result = await bridge.request("delete_notes", {
+          track,
+          ...(group !== undefined && { group }),
+          indexes,
+        });
+        return ok(result);
       } catch (error) {
         return fail(error);
       }

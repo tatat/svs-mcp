@@ -128,6 +128,67 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
     expect(main.notes.map((n) => n.lyrics)).toEqual(["ら", "ら", "ら"]);
   });
 
+  it("updates notes and returns a fresh snapshot", async () => {
+    const QUARTER = 705_600_000;
+    const result = (await client.request("update_notes", {
+      track: 1,
+      group: 1,
+      notes: [
+        { index: 2, lyrics: "る", pitch: 65 },
+        { index: 3, duration: QUARTER / 2 },
+      ],
+    })) as {
+      updatedCount: number;
+      notes: Array<{ index: number; lyrics: string; pitch: number; duration: number }>;
+    };
+    expect(result.updatedCount).toBe(2);
+    const edited = result.notes.find((n) => n.index === 2);
+    expect(edited).toMatchObject({ lyrics: "る", pitch: 65 });
+    expect(result.notes.find((n) => n.index === 3)).toMatchObject({ duration: QUARTER / 2 });
+  });
+
+  it("moves a note in time and reports re-sorted indices", async () => {
+    const QUARTER = 705_600_000;
+    // Move the first note (onset 0) behind the others (onset 3 quarters).
+    const result = (await client.request("update_notes", {
+      track: 1,
+      group: 1,
+      notes: [{ index: 1, onset: 3 * QUARTER }],
+    })) as { notes: Array<{ index: number; onset: number; pitch: number }> };
+    const moved = result.notes.find((n) => n.onset === 3 * QUARTER);
+    expect(moved?.pitch).toBe(60);
+    expect(moved?.index).toBe(3);
+  });
+
+  it("deletes notes by index", async () => {
+    const result = (await client.request("delete_notes", {
+      track: 1,
+      group: 1,
+      indexes: [1, 3],
+    })) as { deletedCount: number; totalNotes: number };
+    expect(result).toMatchObject({ deletedCount: 2, totalNotes: 1 });
+
+    const remaining = (await client.request("get_notes", { track: 1, group: 1 })) as {
+      notes: Array<{ pitch: number }>;
+    };
+    expect(remaining.notes.map((n) => n.pitch)).toEqual([62]);
+  });
+
+  it("flows lyrics onto consecutive notes", async () => {
+    const result = (await client.request("set_lyrics", {
+      track: 1,
+      group: 1,
+      startIndex: 1,
+      lyrics: ["き", "ら", "-"],
+    })) as { updatedCount: number; notes: Array<{ index: number; lyrics: string }> };
+    expect(result.updatedCount).toBe(3);
+    expect(result.notes.map((n) => n.lyrics)).toEqual(["き", "ら", "-"]);
+
+    await expect(
+      client.request("set_lyrics", { track: 1, group: 1, startIndex: 2, lyrics: ["a", "b", "c"] }),
+    ).rejects.toThrow(/run past the last note/);
+  });
+
   it("adds a track with its own main group", async () => {
     const created = (await client.request("add_track", { name: "Chorus" })) as {
       track: number;

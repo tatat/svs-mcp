@@ -51,22 +51,26 @@ end
 
 local function makeGroup(name)
   local group = { notes = {}, name = name }
-  function group:getNumNotes() return #self.notes end
-  function group:getNote(i) return self.notes[i] end
+  -- The real API keeps notes sorted by onset even when one is moved via
+  -- setTimeRange/setOnset; emulate that by sorting before every access.
+  local function sorted(self)
+    table.sort(self.notes, function(a, b) return a.onset < b.onset end)
+    return self.notes
+  end
+  function group:getNumNotes() return #sorted(self) end
+  function group:getNote(i) return sorted(self)[i] end
   function group:addNote(note)
-    -- Insert keeping ascending onset order, like the real API.
-    local at = #self.notes + 1
-    for i, existing in ipairs(self.notes) do
-      if note:getOnset() < existing:getOnset() then
-        at = i
-        break
+    table.insert(self.notes, note)
+    local list = sorted(self)
+    for i, existing in ipairs(list) do
+      if existing == note then
+        return i
       end
     end
-    table.insert(self.notes, at, note)
-    return at
   end
   function group:getName() return self.name end
   function group:setName(newName) self.name = newName end
+  function group:removeNote(i) table.remove(self.notes, i) end
   return group
 end
 
