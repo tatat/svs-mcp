@@ -34,8 +34,15 @@ project (4/4 grid, actual music partly in 5-quarter cycles and partly 3/4).
   no notes to analyze.
 - Humanized/off-grid MIDI produces fractional offsets (`+7/32` etc.); round to
   the grid or filter to integer-quarter onsets before the histogram.
-- The histogram gives the cycle length; the phase (where bar lines fall) comes
-  from which residue classes are occupied, interpreted with musical judgment.
+- The histogram gives the cycle length; the phase (where bar lines fall) is
+  genuinely ambiguous. Occupied residue classes fit multiple readings (e.g.
+  "beats 1+2 sung" vs "beats 1+3 sung" differ by a 2-quarter shift), and
+  filtering to integer-quarter onsets can silently drop the true downbeat when
+  it sits on a fractional position. Confirm the phase with the user by naming a
+  syllable ("the 3/4 starts on the ら of ひらいたら") before writing marks.
+- When the correct bar start doesn't fall on a boundary of the previous meter,
+  insert a short transition bar (e.g. one 2/4 measure) so the following
+  signature lands exactly on the intended downbeat.
 
 ## Writing the result back
 
