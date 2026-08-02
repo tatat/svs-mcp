@@ -72,6 +72,8 @@ To remove everything, `npm run uninstall-sv`.
 | `set_lyrics` | Flow lyrics (one syllable per note) onto an existing melody |
 | `get_phrases` | Analyze a melody into phrases/sections with repetition (shape) labels |
 | `set_time_signature` | Add/update/remove time signature marks (align SV's grid with the music) |
+| `open_lyrics_editor` | Browser page for the user to adjust syllable boundaries before applying |
+| `get_lyrics_editor_result` | Fetch the user-edited syllable plan from the editor |
 | `get_phonemes` | Inspect the phonemes SV will actually sing |
 | `set_phonemes` | Override phonemes per note (`"k a"`); empty string resets |
 | `set_language` | Per-note language override for mixed-language lyrics |

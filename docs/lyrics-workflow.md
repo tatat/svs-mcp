@@ -19,10 +19,13 @@ per song — do not hard-code one song's interpretation.
 3. **Get lyrics** — ask the user for the lyrics as text, ideally with sections
    separated by blank lines. Match lyric sections to melodic sections.
 4. **Align** — split lyrics into syllables and map them to phrases. Present the
-   plan and get the user's confirmation BEFORE applying. In particular, show the
-   **readings** (kanji → kana): 明日 can be あした or あす, and a wrong reading is
-   harder to notice after it's already flowed in. Also surface every judgment
-   call that varies per song:
+   plan and get the user's confirmation BEFORE applying. The preferred way is
+   `open_lyrics_editor`: it opens a browser page where the user adjusts syllable
+   boundaries with spaces (あし た → あ した) against live note-count checks;
+   fetch the result with `get_lyrics_editor_result` once they submit. In
+   particular, confirm the **readings** (kanji → kana): 明日 can be あした or
+   あす, and a wrong reading is harder to notice after it's already flowed in.
+   Also surface every judgment call that varies per song:
    - where to place melisma (`-`) when notes > syllables
    - which syllables to cram onto one note when syllables > notes
    - how repeated shapes distribute repeated lines
