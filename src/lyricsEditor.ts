@@ -34,13 +34,13 @@ function renderPage(title: string, phrases: EditorPhrase[]): string {
 <meta charset="utf-8">
 <title>${esc(title)} — svs-mcp lyrics editor</title>
 <style>
+  /* Warm pastel palette, light mode only, by user preference. */
   :root {
-    --bg: #f5f3fa; --card: #fffdfe; --ink: #46425a; --muted: #a09aae;
-    --line: #eae4f2; --accent: #56a98a; --accent-soft: #dcf2e7;
-    --bad: #c76e7f; --bad-soft: #fbe7ec;
-    --btn-bg: #b9e2cf; --btn-ink: #23604a;
+    --bg: #faf4ec; --card: #fffdf9; --ink: #55463c; --muted: #b3a190;
+    --line: #f0e3d3; --accent: #c98545; --accent-soft: #f9e9d2;
+    --bad: #c96f74; --bad-soft: #fce8e6;
+    --btn-bg: #f6d4a8; --btn-ink: #7c4f1d;
   }
-  /* Light palette only, by user preference. */
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, "Hiragino Sans", sans-serif;
