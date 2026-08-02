@@ -42,3 +42,8 @@ per song — do not hard-code one song's interpretation.
   already sung as `o` by SV.
 
 `-` notes show empty computed phonemes in `get_phonemes`; that is normal.
+
+When the SV grid doesn't match the music's real meter (common with imported
+MIDI), index-based steps above still work; see
+[meter-inference.md](meter-inference.md) for figuring out the actual meter from
+note data.
