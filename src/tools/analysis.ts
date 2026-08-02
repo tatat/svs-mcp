@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BridgeClient } from "../bridge.js";
-import { detectPhrases } from "../phrases.js";
+import { detectPhrases, labelPhraseShapes } from "../phrases.js";
 import { blickToMusical, blickToNoteValue, formatPitch, noteValueToBlick } from "../time.js";
 import {
   fail,
@@ -22,9 +22,11 @@ export function registerAnalysisTools(server: McpServer, bridge: BridgeClient): 
         "Analyze a track's melody into phrases by finding rests between notes — " +
         "the recommended first step when flowing lyrics onto an imported melody. " +
         "Each phrase reports its note index range, note count (= syllables " +
-        "needed), position, pitch range and current lyrics, and long rests are " +
-        "flagged as likely section boundaries. Then assign lyrics phrase by " +
-        "phrase with set_lyrics using each phrase's firstNote index.",
+        "needed), position, pitch range, current lyrics, and a `shape` label — " +
+        "phrases sharing a letter have an identical melody, which usually means " +
+        "they carry the same (or parallel) lyric line. Long rests are flagged " +
+        "as likely section boundaries. Then assign lyrics phrase by phrase " +
+        "with set_lyrics using each phrase's firstNote index.",
       inputSchema: {
         track: trackSchema,
         group: groupSchema,
@@ -53,13 +55,16 @@ export function registerAnalysisTools(server: McpServer, bridge: BridgeClient): 
           ...(group !== undefined && { group }),
         })) as NotesResult;
 
-        const phrases = detectPhrases(result.notes, restBlick, sectionBlick).map((phrase) => {
+        const detected = detectPhrases(result.notes, restBlick, sectionBlick);
+        const shapes = labelPhraseShapes(detected, result.notes);
+        const phrases = detected.map((phrase) => {
           const notes = result.notes.filter(
             (n) => n.index >= phrase.firstNote && n.index <= phrase.lastNote,
           );
           const pitches = notes.map((n) => n.pitch);
           return {
             phrase: phrase.index,
+            shape: shapes[phrase.index - 1],
             ...(phrase.sectionBreakBefore && { sectionBreakBefore: true }),
             gapBefore:
               phrase.gapBeforeBlick === null ? null : blickToNoteValue(phrase.gapBeforeBlick),

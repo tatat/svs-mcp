@@ -28,6 +28,35 @@ export interface Phrase {
   sectionBreakBefore: boolean;
 }
 
+/**
+ * Label phrases that share an identical pitch+duration sequence with the
+ * same letter ("A", "B", ...), in order of first appearance. Repeated
+ * shapes usually carry the same lyric line, which makes repetition
+ * structure visible for any song without song-specific rules.
+ */
+export function labelPhraseShapes(
+  phrases: Phrase[],
+  notes: Array<PhraseNoteInput & { pitch?: number }>,
+): string[] {
+  const byIndex = new Map(notes.map((n) => [n.index, n]));
+  const labelByFingerprint = new Map<string, string>();
+  return phrases.map((phrase) => {
+    const parts: string[] = [];
+    for (let i = phrase.firstNote; i <= phrase.lastNote; i++) {
+      const note = byIndex.get(i);
+      if (note) parts.push(`${note.pitch}:${note.duration}`);
+    }
+    const fingerprint = parts.join(" ");
+    let label = labelByFingerprint.get(fingerprint);
+    if (!label) {
+      label = String.fromCharCode(65 + (labelByFingerprint.size % 26));
+      if (labelByFingerprint.size >= 26) label += Math.floor(labelByFingerprint.size / 26);
+      labelByFingerprint.set(fingerprint, label);
+    }
+    return label;
+  });
+}
+
 export function detectPhrases(
   notes: PhraseNoteInput[],
   restThresholdBlick: number,

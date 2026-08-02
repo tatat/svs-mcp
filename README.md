@@ -70,6 +70,7 @@ To remove everything, `npm run uninstall-sv`.
 | `update_notes` | Edit lyrics/pitch/timing of existing notes by index |
 | `delete_notes` | Delete notes by index |
 | `set_lyrics` | Flow lyrics (one syllable per note) onto an existing melody |
+| `get_phrases` | Analyze a melody into phrases/sections with repetition (shape) labels |
 | `get_phonemes` | Inspect the phonemes SV will actually sing |
 | `set_phonemes` | Override phonemes per note (`"k a"`); empty string resets |
 | `set_language` | Per-note language override for mixed-language lyrics |
@@ -77,6 +78,9 @@ To remove everything, `npm run uninstall-sv`.
 Positions and durations use musical notation (1-based measures/beats, note values
 like `1/8` or dotted `1/8.`); the server converts to SV's internal blicks.
 Japanese lyrics take one kana per note; `-` extends the previous vowel.
+
+For putting lyrics on an imported MIDI melody, see
+[docs/lyrics-workflow.md](docs/lyrics-workflow.md).
 
 ## Important: groups and singers
 

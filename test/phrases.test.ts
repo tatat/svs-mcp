@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectPhrases } from "../src/phrases.js";
+import { detectPhrases, labelPhraseShapes } from "../src/phrases.js";
 import { QUARTER } from "../src/time.js";
 
 const EIGHTH = QUARTER / 2;
@@ -62,6 +62,20 @@ describe("detectPhrases", () => {
       4 * QUARTER,
     );
     expect(phrases).toHaveLength(1);
+  });
+
+  it("labels repeated melodies with the same shape letter", () => {
+    // Two identical phrases around a different one: A, B, A.
+    const seq = [
+      { index: 1, onset: 0, duration: QUARTER, pitch: 60 },
+      { index: 2, onset: QUARTER, duration: QUARTER, pitch: 62 },
+      { index: 3, onset: 4 * QUARTER, duration: QUARTER, pitch: 65 },
+      { index: 4, onset: 8 * QUARTER, duration: QUARTER, pitch: 60 },
+      { index: 5, onset: 9 * QUARTER, duration: QUARTER, pitch: 62 },
+    ];
+    const phrases = detectPhrases(seq, EIGHTH, 16 * QUARTER);
+    expect(phrases).toHaveLength(3);
+    expect(labelPhraseShapes(phrases, seq)).toEqual(["A", "B", "A"]);
   });
 
   it("marks long rests as section breaks", () => {
