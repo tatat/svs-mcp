@@ -19,11 +19,15 @@ per song — do not hard-code one song's interpretation.
 3. **Get lyrics** — ask the user for the lyrics as text, ideally with sections
    separated by blank lines. Match lyric sections to melodic sections.
 4. **Align** — split lyrics into syllables and map them to phrases. Present the
-   mapping (including every judgment call) BEFORE or right after applying, so the
-   user can correct by ear. Typical judgment calls that vary per song:
+   plan and get the user's confirmation BEFORE applying. In particular, show the
+   **readings** (kanji → kana): 明日 can be あした or あす, and a wrong reading is
+   harder to notice after it's already flowed in. Also surface every judgment
+   call that varies per song:
    - where to place melisma (`-`) when notes > syllables
    - which syllables to cram onto one note when syllables > notes
    - how repeated shapes distribute repeated lines
+
+   After applying, the user's ear still gets the final check (step 6).
 5. **Apply** — `set_lyrics` per phrase (`startIndex` = the phrase's `firstNote`),
    or one call for the whole track when the mapping tiles all notes.
 6. **QA** — `get_phonemes`; fix pronunciation with `set_phonemes` (readings SV gets
