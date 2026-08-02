@@ -15,6 +15,7 @@
     "build": "tsc",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.test.json",
+    "ping": "node dist/ping.js",
     "install-sv": "scripts/install.sh",
     "uninstall-sv": "scripts/uninstall.sh"
   },

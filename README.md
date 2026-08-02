@@ -54,6 +54,11 @@ Finally, register the server with your MCP client:
 }
 ```
 
+To verify the setup without an MCP client, run `npm run ping` — it prints SV's
+host info when the bridge answers, or setup guidance when it doesn't (exit 1),
+which also makes the whole setup scriptable for an AI agent: only the two
+Scripts-menu clicks above need a human.
+
 To stop the bridge, run **"SVS MCP Bridge: Stop"** from the Scripts menu.
 To remove everything, `npm run uninstall-sv`.
 
