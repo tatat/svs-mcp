@@ -11,6 +11,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { BridgeClient } from "./bridge.js";
 import { registerLyricTools } from "./tools/lyrics.js";
 import { registerNoteTools } from "./tools/notes.js";
+import { registerPhonemeTools } from "./tools/phonemes.js";
 import { registerReadTools } from "./tools/read.js";
 
 async function main(): Promise<void> {
@@ -20,6 +21,7 @@ async function main(): Promise<void> {
   registerReadTools(server, bridge);
   registerNoteTools(server, bridge);
   registerLyricTools(server, bridge);
+  registerPhonemeTools(server, bridge);
 
   await server.connect(new StdioServerTransport());
   console.error("svs-mcp server running (stdio)");

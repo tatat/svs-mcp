@@ -189,6 +189,44 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
     ).rejects.toThrow(/run past the last note/);
   });
 
+  it("reads computed phonemes and applies overrides", async () => {
+    const before = (await client.request("get_phonemes", { track: 1, group: 1 })) as {
+      complete: boolean;
+      notes: Array<{ lyrics: string; userPhonemes: string; computedPhonemes: string }>;
+    };
+    expect(before.complete).toBe(true);
+    expect(before.notes).toHaveLength(3);
+    expect(before.notes[0]).toMatchObject({ userPhonemes: "", computedPhonemes: "l a" });
+
+    const set = (await client.request("set_phonemes", {
+      track: 1,
+      group: 1,
+      notes: [{ index: 1, phonemes: "r a" }],
+    })) as { updatedCount: number; notes: Array<{ phonemes: string }> };
+    expect(set.updatedCount).toBe(1);
+    expect(set.notes[0]?.phonemes).toBe("r a");
+
+    const after = (await client.request("get_phonemes", { track: 1, group: 1 })) as {
+      notes: Array<{ userPhonemes: string }>;
+    };
+    expect(after.notes[0]?.userPhonemes).toBe("r a");
+  });
+
+  it("sets and resets language overrides", async () => {
+    const set = (await client.request("set_language", {
+      track: 1,
+      group: 1,
+      indexes: [1, 2],
+      language: "english",
+    })) as { updatedCount: number };
+    expect(set.updatedCount).toBe(2);
+
+    const notes = (await client.request("get_notes", { track: 1, group: 1 })) as {
+      notes: Array<{ languageOverride: string }>;
+    };
+    expect(notes.notes.map((n) => n.languageOverride)).toEqual(["english", "english", ""]);
+  });
+
   it("adds a track with its own main group", async () => {
     const created = (await client.request("add_track", { name: "Chorus" })) as {
       track: number;

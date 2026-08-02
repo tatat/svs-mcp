@@ -859,6 +859,71 @@ local function handleSetLyrics(params)
   }
 end
 
+-- params: track, group?, notes: array of {index, phonemes}. An empty
+-- phoneme string resets the note to the automatic pronunciation.
+local function handleSetPhonemes(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  if type(params.notes) ~= "table" or #params.notes == 0 then
+    error("No notes provided", 0)
+  end
+  for _, edit in ipairs(params.notes) do
+    local i = edit.index
+    if type(i) ~= "number" or i < 1 or i > group:getNumNotes() or i % 1 ~= 0 then
+      error("Note " .. tostring(i) .. " does not exist (group has " ..
+        group:getNumNotes() .. " note(s))", 0)
+    end
+  end
+
+  project:newUndoRecord()
+  local notes = {}
+  for _, edit in ipairs(params.notes) do
+    local note = group:getNote(edit.index)
+    note:setPhonemes(edit.phonemes or "")
+    table.insert(notes, noteToTable(note, edit.index, timeOffset))
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    updatedCount = #params.notes,
+    notes = notes
+  }
+end
+
+-- params: track, group?, indexes: array, language: string ("japanese",
+-- "english", "mandarin", "cantonese"; empty string resets to default).
+local function handleSetLanguage(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  if type(params.indexes) ~= "table" or #params.indexes == 0 then
+    error("No note indexes provided", 0)
+  end
+  if type(params.language) ~= "string" then
+    error("No language provided", 0)
+  end
+  for _, i in ipairs(params.indexes) do
+    if type(i) ~= "number" or i < 1 or i > group:getNumNotes() or i % 1 ~= 0 then
+      error("Note " .. tostring(i) .. " does not exist (group has " ..
+        group:getNumNotes() .. " note(s))", 0)
+    end
+  end
+
+  project:newUndoRecord()
+  for _, i in ipairs(params.indexes) do
+    group:getNote(i):setLanguageOverride(params.language)
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    updatedCount = #params.indexes
+  }
+end
+
 -- params: name?. Returns the new 1-based track index.
 local function handleAddTrack(params)
   local project = SV:getProject()
@@ -881,6 +946,8 @@ local handlers = {
   delete_notes = handleDeleteNotes,
   set_lyrics = handleSetLyrics,
   get_phonemes = handleGetPhonemes,
+  set_phonemes = handleSetPhonemes,
+  set_language = handleSetLanguage,
   create_group = handleCreateGroup,
   add_track = handleAddTrack
 }

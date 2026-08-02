@@ -37,7 +37,8 @@ local function makeNote()
   function note:setPitch(pitch) self.pitch = pitch end
   function note:setLyrics(lyrics) self.lyrics = lyrics end
   function note:setPhonemes(phonemes) self.phonemes = phonemes end
-  function note:getLanguageOverride() return "" end
+  function note:getLanguageOverride() return self.languageOverride or "" end
+  function note:setLanguageOverride(language) self.languageOverride = language end
   return note
 end
 
