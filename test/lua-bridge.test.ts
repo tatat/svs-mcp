@@ -204,6 +204,13 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
       }),
     ]);
 
+    // Updating an existing mark must work despite the SV quirk where
+    // addMeasureMark ignores measures that already have a mark.
+    const updated = (await client.request("set_time_signature", {
+      marks: [{ measure: 4, numerator: 5, denominator: 4 }],
+    })) as { timeSignatures: Array<Record<string, number>> };
+    expect(updated.timeSignatures[1]).toMatchObject({ measure: 4, numerator: 5 });
+
     const removed = (await client.request("set_time_signature", { remove: [4] })) as {
       timeSignatures: Array<Record<string, number>>;
     };

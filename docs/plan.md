@@ -72,6 +72,7 @@ Empirical findings that shape the tool design:
 - Groups created via script (`SV:create("NoteGroup")` + `addGroupReference`), including groups on script-created tracks, inherit the default singer and **do sing**.
 - There is **no API to select or query the singer** (voice database); `NoteGroupReference#getVoice/setVoice` only handle parameters (loudness, tension, etc.). Singer selection stays in the SV UI.
 - Note onsets inside a group are relative to the reference's time offset; the bridge always converts to absolute project positions.
+- `TimeAxis#addMeasureMark` silently ignores a measure that already has a mark (the docs claim it updates; observed otherwise on 2.2.1). The bridge removes the mark first so updates take effect.
 
 Consequently: `insert_notes` defaults to the first non-main group and auto-creates one when the track has none; the main group is never targeted implicitly. `add_track` and `create_group` tools exist (originally out of scope, promoted during verification).
 

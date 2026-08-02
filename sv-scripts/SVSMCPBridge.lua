@@ -941,6 +941,10 @@ local function handleSetTimeSignature(params)
     timeAxis:removeMeasureMark(measure)
   end
   for _, mark in ipairs(marks) do
+    -- SV quirk (observed on 2.2.1, contradicting the docs): addMeasureMark
+    -- silently ignores a measure that already has a mark. Remove first so
+    -- updates take effect.
+    timeAxis:removeMeasureMark(mark.measure)
     timeAxis:addMeasureMark(mark.measure, mark.numerator, mark.denominator)
   end
 

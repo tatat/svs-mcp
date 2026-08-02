@@ -21,10 +21,10 @@ local stubTimeAxis = {
     return self.measureMarks
   end,
   addMeasureMark = function(self, measure, nomin, denom)
+    -- Mimics the real SV quirk: adding at a measure that already has a mark
+    -- is silently ignored (the docs claim it updates; SV 2.2.1 does not).
     for _, mark in ipairs(self.measureMarks) do
       if mark.position == measure then
-        mark.numerator = nomin
-        mark.denominator = denom
         return
       end
     end
