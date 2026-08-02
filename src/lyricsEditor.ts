@@ -34,54 +34,124 @@ function renderPage(title: string, phrases: EditorPhrase[]): string {
 <meta charset="utf-8">
 <title>${esc(title)} — svs-mcp lyrics editor</title>
 <style>
-  body { font-family: -apple-system, "Hiragino Sans", sans-serif; margin: 2rem auto; max-width: 46rem; padding: 0 1rem; }
-  h1 { font-size: 1.2rem; }
-  p.hint { color: #555; }
-  table { border-collapse: collapse; width: 100%; }
-  td { padding: .3rem .4rem; vertical-align: middle; }
-  td.label { white-space: nowrap; color: #555; font-size: .85rem; }
-  td.count { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: .85rem; }
-  input.syl { width: 100%; font-size: 1.05rem; padding: .35rem .5rem; box-sizing: border-box;
-              border: 1px solid #ccc; border-radius: 6px; }
-  tr.ng input.syl { border-color: #d33; background: #fff5f5; }
-  .ok { color: #2a7; } .ng { color: #d33; font-weight: bold; }
-  button { font-size: 1rem; padding: .5rem 1.4rem; margin-top: 1rem; border-radius: 8px;
-           border: 1px solid #888; background: #f5f5f5; cursor: pointer; }
-  #status { margin-left: 1rem; }
+  :root {
+    --bg: #f5f3fa; --card: #fffdfe; --ink: #46425a; --muted: #a09aae;
+    --line: #eae4f2; --accent: #56a98a; --accent-soft: #dcf2e7;
+    --bad: #c76e7f; --bad-soft: #fbe7ec;
+    --btn-bg: #b9e2cf; --btn-ink: #23604a;
+  }
+  /* Light palette only, by user preference. */
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", sans-serif;
+    background: var(--bg); color: var(--ink);
+    margin: 0; padding: 2.5rem 1.25rem 6.5rem;
+  }
+  main { max-width: 44rem; margin: 0 auto; }
+  h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: .01em; margin: 0 0 .4rem; }
+  p.hint { color: var(--muted); font-size: .9rem; line-height: 1.6; margin: 0 0 1.75rem; }
+  p.hint kbd {
+    font-family: inherit; background: var(--card); border: 1px solid var(--line);
+    border-radius: 5px; padding: .05rem .4rem;
+  }
+  .phrase {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: .8rem 1rem .95rem; margin-bottom: .7rem;
+    transition: border-color .15s;
+  }
+  .phrase.ng { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+  .phrase .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5rem; }
+  .phrase .label { color: var(--muted); font-size: .8rem; letter-spacing: .02em; }
+  .badge {
+    font-size: .78rem; font-variant-numeric: tabular-nums; letter-spacing: .03em;
+    padding: .12rem .6rem; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .phrase.ng .badge { background: var(--bad-soft); color: var(--bad); }
+  input.syl {
+    width: 100%; font-size: 1.25rem; letter-spacing: .12em; line-height: 1.5;
+    padding: .5rem .7rem; color: var(--ink);
+    background: transparent; border: none; border-bottom: 2px solid var(--line);
+    border-radius: 0; outline: none; transition: border-color .15s;
+  }
+  input.syl:focus { border-bottom-color: var(--accent); }
+  .phrase.ng input.syl { border-bottom-color: var(--bad); }
+  footer {
+    position: fixed; inset: auto 0 0 0;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+  footer .inner {
+    max-width: 44rem; margin: 0 auto; padding: .9rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  #summary { font-size: .88rem; color: var(--muted); flex: 1; }
+  #summary.ng { color: var(--bad); }
+  button {
+    font-size: .95rem; font-weight: 600; letter-spacing: .02em;
+    padding: .6rem 1.6rem; border-radius: 999px; border: none;
+    background: var(--btn-bg); color: var(--btn-ink); cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { font-size: .88rem; color: var(--accent); }
 </style>
 </head>
 <body>
-<h1>${esc(title)}</h1>
-<p class="hint">スペースで言葉の切れ目を調整してください (例: 「あし た」→「あ した」)。
-右の数字は 現在の音節数 / 必要ノート数 です。</p>
-<table id="rows"></table>
-<button id="submit">この内容で確定</button><span id="status"></span>
+<main>
+  <h1>${esc(title)}</h1>
+  <p class="hint"><kbd>スペース</kbd> で言葉の切れ目を調整してください — 例: 「あし た」→「あ した」。
+右上の数字は <b>現在の音節数 / 必要ノート数</b> です。<kbd>Enter</kbd> で次の行に移動します。</p>
+  <div id="rows"></div>
+</main>
+<footer><div class="inner">
+  <span id="summary"></span>
+  <span id="status"></span>
+  <button id="submit">この内容で確定</button>
+</div></footer>
 <script>
 const phrases = ${data};
 const rows = document.getElementById("rows");
+const summary = document.getElementById("summary");
 const tokenize = (s) => s.split(/\\s+/u).filter((t) => t.length > 0);
-phrases.forEach((p, i) => {
-  const tr = document.createElement("tr");
-  tr.innerHTML = '<td class="label"></td><td><input class="syl"></td><td class="count"></td>';
-  tr.querySelector(".label").textContent = p.label;
-  const input = tr.querySelector("input");
+const cards = phrases.map((p) => {
+  const card = document.createElement("div");
+  card.className = "phrase";
+  card.innerHTML =
+    '<div class="head"><span class="label"></span><span class="badge"></span></div>' +
+    '<input class="syl" autocomplete="off" spellcheck="false">';
+  card.querySelector(".label").textContent = p.label;
+  const input = card.querySelector("input");
   input.value = p.syllables.join(" ");
-  const count = tr.querySelector(".count");
-  const update = () => {
-    const n = tokenize(input.value).length;
-    count.textContent = n + " / " + p.noteCount;
-    const ok = n === p.noteCount;
-    count.className = "count " + (ok ? "ok" : "ng");
-    tr.className = ok ? "" : "ng";
-  };
-  input.addEventListener("input", update);
-  update();
-  rows.appendChild(tr);
+  rows.appendChild(card);
+  return { p, card, input };
 });
+function refresh() {
+  let bad = 0;
+  for (const { p, card, input } of cards) {
+    const n = tokenize(input.value).length;
+    const ok = n === p.noteCount;
+    if (!ok) bad++;
+    card.className = "phrase" + (ok ? "" : " ng");
+    card.querySelector(".badge").textContent = n + " / " + p.noteCount;
+  }
+  summary.textContent = bad === 0
+    ? "すべてのフレーズが一致しています"
+    : bad + " 件のフレーズで音節数が合っていません";
+  summary.className = bad === 0 ? "" : "ng";
+}
+cards.forEach(({ input }, i) => {
+  input.addEventListener("input", refresh);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing && cards[i + 1]) cards[i + 1].input.focus();
+  });
+});
+refresh();
 document.getElementById("submit").addEventListener("click", async () => {
-  const result = phrases.map((p, i) => ({
+  const result = cards.map(({ p, input }) => ({
     label: p.label,
-    syllables: tokenize(rows.querySelectorAll("input")[i].value),
+    syllables: tokenize(input.value),
   }));
   const res = await fetch("/submit", {
     method: "POST",
@@ -89,7 +159,7 @@ document.getElementById("submit").addEventListener("click", async () => {
     body: JSON.stringify({ phrases: result }),
   });
   document.getElementById("status").textContent =
-    res.ok ? "送信しました。チャットに戻って続けてください。" : "送信に失敗しました";
+    res.ok ? "送信しました ✓ チャットに戻って続けてください" : "送信に失敗しました";
 });
 </script>
 </body>
