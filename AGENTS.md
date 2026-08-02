@@ -7,7 +7,9 @@ decisions change; it is the source of truth for scope and architecture.
 
 ## Status
 
-Design phase. No source code exists yet; the layout described in `docs/plan.md` is the target.
+Implemented and verified against SV Studio 2 Pro 2.2.1 (all planned milestones plus phrase
+analysis, time signature editing, and a browser-based lyrics editor). See README.md for the
+tool list and docs/lyrics-workflow.md / docs/meter-inference.md for the workflows.
 
 ## Fixed decisions
 

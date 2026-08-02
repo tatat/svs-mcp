@@ -88,20 +88,31 @@ Read:
 | Tool | Description |
 |---|---|
 | `ping` | Bridge liveness check. On failure, returns setup instructions |
-| `get_project_info` | Project name/path, tempo, time signatures, track list (name, note count, voice) |
-| `get_notes` | Notes of a track, filterable by measure range. Returns lyrics, pitch (MIDI number and note name like C4), onset/duration (musical + blicks), user-specified phonemes |
+| `get_project_info` | Project name/path, tempo, time signatures, track list with groups and mixer state |
+| `get_notes` | Notes of a track/group, filterable by measure range. Returns lyrics, pitch (MIDI number and note name like C4), onset/duration (musical + blicks), user-specified phonemes |
+| `get_phrases` | Phrase analysis: rest-based splitting, note counts, section-break flags, and shape labels marking repeated melodies (see docs/lyrics-workflow.md) |
 | `get_phonemes` | Actual synthesis phonemes via `SV.getPhonemesForGroup` (for pronunciation checks) |
 
 Write:
 
 | Tool | Description |
 |---|---|
+| `add_track` | Add a track (returns its 1-based index) |
+| `create_group` | Add a note group to a track (in SV2 the singer attaches per group) |
 | `insert_notes` | Batch note insertion. Per note: lyrics, pitch (note name `"C4"` or MIDI number), onset (musical), duration (note value). Supports relative placement ("right after the previous note") for sequential input |
 | `update_notes` | Batch edit of lyrics/pitch/timing by index |
-| `delete_notes` | Delete by indices or range |
+| `delete_notes` | Delete by indices |
 | `set_lyrics` | **Lyric flow-in**: start index + array of syllables, assigned to consecutive notes. Japanese: one kana per note; `-` extends the previous vowel (SV convention passed through) |
 | `set_phonemes` | Per-note phoneme override (space-separated, e.g. `"k a"`). Empty string resets |
 | `set_language` | Per-note language override (for mixed Japanese/English songs) |
+| `set_time_signature` | Add/update/remove measure marks so SV's grid matches the music (see docs/meter-inference.md) |
+
+User interaction:
+
+| Tool | Description |
+|---|---|
+| `open_lyrics_editor` | Serves a local browser page (127.0.0.1) where the user adjusts syllable boundaries with spaces before lyrics are applied; auto-opens the default browser |
+| `get_lyrics_editor_result` | Returns the plan the user submitted from the editor page |
 
 Tool descriptions embed SV-specific conventions (one kana per note for Japanese, meaning of `-`, phoneme notation) so an AI can use them correctly without prior knowledge.
 
@@ -115,10 +126,16 @@ svs-mcp/
 │   ├── index.ts          # Entry point. Starts the MCP server (stdio)
 │   ├── bridge.ts         # File-protocol client (write/poll/timeout)
 │   ├── time.ts           # Musical notation <-> blicks conversion (tempo/time-signature aware)
+│   ├── phrases.ts        # Phrase detection + shape labeling (pure analysis)
+│   ├── lyricsEditor.ts   # Local HTTP editor for confirming syllable boundaries
 │   └── tools/            # Tool definitions (one file per tool family)
+│       ├── common.ts
 │       ├── read.ts
 │       ├── notes.ts
-│       └── lyrics.ts
+│       ├── lyrics.ts
+│       ├── phonemes.ts
+│       ├── analysis.ts
+│       └── editor.ts
 ├── sv-scripts/
 │   ├── SVSMCPBridge.lua      # Resident bridge (json.lua embedded at build time)
 │   └── SVSMCPBridgeStop.lua  # Stop script
