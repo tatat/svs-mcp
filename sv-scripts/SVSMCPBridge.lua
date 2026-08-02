@@ -924,6 +924,30 @@ local function handleSetLanguage(params)
   }
 end
 
+-- params: marks?: array of {measure (0-based, as in the SV API), numerator,
+-- denominator}, remove?: array of 0-based measure numbers. Removals run
+-- before additions. Returns the resulting measure mark list (0-based).
+local function handleSetTimeSignature(params)
+  local project = SV:getProject()
+  local timeAxis = project:getTimeAxis()
+  local marks = params.marks or {}
+  local removals = params.remove or {}
+  if #marks == 0 and #removals == 0 then
+    error("Nothing to do: provide marks and/or remove", 0)
+  end
+
+  project:newUndoRecord()
+  for _, measure in ipairs(removals) do
+    timeAxis:removeMeasureMark(measure)
+  end
+  for _, mark in ipairs(marks) do
+    timeAxis:addMeasureMark(mark.measure, mark.numerator, mark.denominator)
+  end
+
+  local _, timeSignatures = timeAxisTables(timeAxis)
+  return { timeSignatures = timeSignatures }
+end
+
 -- params: name?. Returns the new 1-based track index.
 local function handleAddTrack(params)
   local project = SV:getProject()
@@ -949,7 +973,8 @@ local handlers = {
   set_phonemes = handleSetPhonemes,
   set_language = handleSetLanguage,
   create_group = handleCreateGroup,
-  add_track = handleAddTrack
+  add_track = handleAddTrack,
+  set_time_signature = handleSetTimeSignature
 }
 
 -- ===========================================================================

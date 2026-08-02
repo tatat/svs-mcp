@@ -37,8 +37,9 @@ project (4/4 grid, actual music partly in 5-quarter cycles and partly 3/4).
 - The histogram gives the cycle length; the phase (where bar lines fall) comes
   from which residue classes are occupied, interpreted with musical judgment.
 
-## Possible future automation
+## Writing the result back
 
-A `set_time_signature` tool (via `TimeAxis.addMeasureMark`) could write inferred
-marks back so SV's grid matches the music. Keep the inference itself as an
-in-session analysis — per-song judgment applies, as with lyric alignment.
+The `set_time_signature` tool writes measure marks so SV's grid matches the
+music. Keep the inference itself as an in-session analysis — per-song judgment
+applies, as with lyric alignment — and set the marks before doing any
+position-based work, since they change how measure/beat positions map to time.

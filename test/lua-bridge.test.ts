@@ -189,6 +189,29 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
     ).rejects.toThrow(/run past the last note/);
   });
 
+  it("sets and removes time signature marks", async () => {
+    const QUARTER = 705_600_000;
+    const result = (await client.request("set_time_signature", {
+      marks: [{ measure: 4, numerator: 3, denominator: 4 }],
+    })) as { timeSignatures: Array<Record<string, number>> };
+    expect(result.timeSignatures).toEqual([
+      expect.objectContaining({ measure: 0, numerator: 4, denominator: 4 }),
+      expect.objectContaining({
+        measure: 4,
+        numerator: 3,
+        denominator: 4,
+        positionBlick: 16 * QUARTER,
+      }),
+    ]);
+
+    const removed = (await client.request("set_time_signature", { remove: [4] })) as {
+      timeSignatures: Array<Record<string, number>>;
+    };
+    expect(removed.timeSignatures).toHaveLength(1);
+
+    await expect(client.request("set_time_signature", {})).rejects.toThrow(/Nothing to do/);
+  });
+
   it("reads computed phonemes and applies overrides", async () => {
     const before = (await client.request("get_phonemes", { track: 1, group: 1 })) as {
       complete: boolean;

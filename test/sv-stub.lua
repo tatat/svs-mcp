@@ -9,12 +9,46 @@
 local finished = false
 local timerQueue = {}
 
+local WHOLE = 705600000 * 4
+
 local stubTimeAxis = {
+  -- Measure numbers are 0-based, matching the real SV API.
+  measureMarks = { { position = 0, positionBlick = 0, numerator = 4, denominator = 4 } },
   getAllTempoMarks = function(self)
     return { { position = 0, positionSeconds = 0, bpm = 120 } }
   end,
   getAllMeasureMarks = function(self)
-    return { { position = 1, positionBlick = 0, numerator = 4, denominator = 4 } }
+    return self.measureMarks
+  end,
+  addMeasureMark = function(self, measure, nomin, denom)
+    for _, mark in ipairs(self.measureMarks) do
+      if mark.position == measure then
+        mark.numerator = nomin
+        mark.denominator = denom
+        return
+      end
+    end
+    table.insert(self.measureMarks, {
+      position = measure, positionBlick = 0, numerator = nomin, denominator = denom
+    })
+    table.sort(self.measureMarks, function(a, b) return a.position < b.position end)
+    local prev = nil
+    for _, mark in ipairs(self.measureMarks) do
+      if prev ~= nil then
+        mark.positionBlick = prev.positionBlick +
+          (mark.position - prev.position) * (WHOLE * prev.numerator / prev.denominator)
+      end
+      prev = mark
+    end
+  end,
+  removeMeasureMark = function(self, measure)
+    for i, mark in ipairs(self.measureMarks) do
+      if mark.position == measure then
+        table.remove(self.measureMarks, i)
+        return true
+      end
+    end
+    return false
   end
 }
 

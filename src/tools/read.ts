@@ -45,7 +45,15 @@ export function registerReadTools(server: McpServer, bridge: BridgeClient): void
     },
     async () => {
       try {
-        return ok(await bridge.request("get_project_info"));
+        const info = (await bridge.request("get_project_info")) as {
+          timeSignatures: Array<{ measure: number }>;
+        };
+        return ok({
+          ...info,
+          // The bridge reports SV's 0-based measure numbers; the public
+          // interface is 1-based everywhere.
+          timeSignatures: info.timeSignatures.map((s) => ({ ...s, measure: s.measure + 1 })),
+        });
       } catch (error) {
         return fail(error);
       }

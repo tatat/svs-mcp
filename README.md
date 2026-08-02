@@ -71,6 +71,7 @@ To remove everything, `npm run uninstall-sv`.
 | `delete_notes` | Delete notes by index |
 | `set_lyrics` | Flow lyrics (one syllable per note) onto an existing melody |
 | `get_phrases` | Analyze a melody into phrases/sections with repetition (shape) labels |
+| `set_time_signature` | Add/update/remove time signature marks (align SV's grid with the music) |
 | `get_phonemes` | Inspect the phonemes SV will actually sing |
 | `set_phonemes` | Override phonemes per note (`"k a"`); empty string resets |
 | `set_language` | Per-note language override for mixed-language lyrics |

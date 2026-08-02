@@ -14,7 +14,57 @@ import {
   type NotesResult,
 } from "./common.js";
 
+const signatureMarkSchema = z.object({
+  measure: z.number().int().min(1).describe("Measure where the signature takes effect, 1-based"),
+  numerator: z.number().int().min(1).max(32).describe("Beats per measure (e.g. 3 for 3/4)"),
+  denominator: z
+    .union([z.literal(1), z.literal(2), z.literal(4), z.literal(8), z.literal(16), z.literal(32)])
+    .describe("Beat unit (e.g. 4 for 3/4)"),
+});
+
 export function registerAnalysisTools(server: McpServer, bridge: BridgeClient): void {
+  server.registerTool(
+    "set_time_signature",
+    {
+      description:
+        "Add, update or remove time signature marks so SV's grid matches the " +
+        "music (useful after importing MIDI without meter information; see " +
+        "get_phrases for inferring the real meter from the notes). Removals are " +
+        "applied before additions. NOTE: this changes how measure/beat " +
+        "positions map to time for every other tool, so set signatures before " +
+        "doing position-based work. One undo step. Returns the resulting " +
+        "signature list.",
+      inputSchema: {
+        marks: z
+          .array(signatureMarkSchema)
+          .optional()
+          .describe("Signature marks to add or update"),
+        remove: z
+          .array(z.number().int().min(1))
+          .optional()
+          .describe("1-based measure numbers whose marks should be removed"),
+      },
+    },
+    async ({ marks, remove }) => {
+      try {
+        if ((marks?.length ?? 0) === 0 && (remove?.length ?? 0) === 0) {
+          throw new Error("Provide marks and/or remove.");
+        }
+        const result = (await bridge.request("set_time_signature", {
+          ...(marks && {
+            marks: marks.map((m) => ({ ...m, measure: m.measure - 1 })),
+          }),
+          ...(remove && { remove: remove.map((m) => m - 1) }),
+        })) as { timeSignatures: Array<{ measure: number }> };
+        return ok({
+          timeSignatures: result.timeSignatures.map((s) => ({ ...s, measure: s.measure + 1 })),
+        });
+      } catch (error) {
+        return fail(error);
+      }
+    },
+  );
+
   server.registerTool(
     "get_phrases",
     {
