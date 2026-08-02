@@ -24,6 +24,9 @@ Design phase. No source code exists yet; the layout described in `docs/plan.md` 
   are an internal detail of the server.
 - Notes are addressed by onset-order index, so every mutating tool returns a fresh snapshot of the
   affected range.
+- SV Studio 2 attaches the singer per note group; notes in a track's main group are NOT synthesized.
+  Tools therefore default to the first non-main group (auto-created on insert when missing). There is
+  no scripting API for singer selection. See "Groups and singers" in docs/plan.md.
 
 ## SV scripting reference
 
