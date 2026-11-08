@@ -116,6 +116,20 @@ local function makeGroup(name)
   function group:getName() return self.name end
   function group:setName(newName) self.name = newName end
   function group:removeNote(i) table.remove(self.notes, i) end
+  group.pitchControls = {}
+  local function sortedControls(self)
+    table.sort(self.pitchControls, function(a, b) return a.position < b.position end)
+    return self.pitchControls
+  end
+  function group:getNumPitchControls() return #sortedControls(self) end
+  function group:getPitchControl(i) return sortedControls(self)[i] end
+  function group:addPitchControl(control)
+    table.insert(self.pitchControls, control)
+    for i, existing in ipairs(sortedControls(self)) do
+      if existing == control then return i end
+    end
+  end
+  function group:removePitchControl(i) table.remove(sortedControls(self), i) end
   return group
 end
 
@@ -126,6 +140,7 @@ local function makeGroupRef(group, isMain)
   function ref:isMuted() return false end
   function ref:getOnset() return self.timeOffset end
   function ref:getTimeOffset() return self.timeOffset end
+  function ref:getPitchOffset() return 0 end
   function ref:setTimeOffset(blickOffset) self.timeOffset = blickOffset end
   function ref:getTarget() return self.target end
   function ref:setTarget(newTarget) self.target = newTarget end
@@ -185,6 +200,15 @@ SV = {
       return makeGroup("Unnamed Group")
     elseif objectType == "NoteGroupReference" then
       return makeGroupRef(nil, false)
+    elseif objectType == "PitchControlCurve" then
+      local curve = { position = 0, pitch = 0, points = {} }
+      function curve:getPosition() return self.position end
+      function curve:setPosition(p) self.position = p end
+      function curve:getPitch() return self.pitch end
+      function curve:setPitch(p) self.pitch = p end
+      function curve:getPoints() return self.points end
+      function curve:setPoints(points) self.points = points end
+      return curve
     elseif objectType == "Track" then
       return makeTrack("Unnamed Track")
     end
@@ -205,6 +229,22 @@ SV = {
     }
   end,
   getProject = function(self) return stubProject end,
+  -- Computed pitch: every note sung with a 30-cent, 5-cycles-per-quarter
+  -- wobble around its written pitch; nil between notes.
+  getComputedPitchForGroup = function(self, ref, blickStart, blickInterval, numFrames)
+    local group = ref:getTarget()
+    local values = {}
+    for i = 1, numFrames do
+      local t = blickStart + (i - 1) * blickInterval
+      for n = 1, group:getNumNotes() do
+        local note = group:getNote(n)
+        if t >= note:getOnset() and t < note:getEnd() then
+          values[i] = note:getPitch() + 0.15 * math.sin(2 * math.pi * 5 * t / QUARTER)
+        end
+      end
+    end
+    return values
+  end,
   getPhonemesForGroup = function(self, ref)
     local phonemes = {}
     for i = 1, ref:getTarget():getNumNotes() do

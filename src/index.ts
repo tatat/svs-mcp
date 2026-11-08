@@ -15,6 +15,7 @@ import { registerEditorTools } from "./tools/editor.js";
 import { registerLyricTools } from "./tools/lyrics.js";
 import { registerNoteTools } from "./tools/notes.js";
 import { registerPhonemeTools } from "./tools/phonemes.js";
+import { registerPitchTools } from "./tools/pitch.js";
 import { registerReadTools } from "./tools/read.js";
 
 async function main(): Promise<void> {
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   registerLyricTools(server, bridge);
   registerPhonemeTools(server, bridge);
   registerAttributeTools(server, bridge);
+  registerPitchTools(server, bridge);
   registerAnalysisTools(server, bridge);
   registerEditorTools(server);
 

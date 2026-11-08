@@ -1053,6 +1053,200 @@ local function handleSetNoteAttributes(params)
   }
 end
 
+-- ---------------------------------------------------------------------------
+-- Pitch: computed (AI-generated) pitch and pitch controls (pen-tool curves
+-- and anchor points). The bridge speaks absolute positions (blicks, after
+-- the reference's time offset) and pitches in the note pitch space (MIDI
+-- numbers, before the reference's pitch offset), so curves line up with
+-- note pitches directly.
+-- ---------------------------------------------------------------------------
+
+local MAX_PITCH_FRAMES = 20000
+
+-- params: track, group?, startBlick, intervalBlick, numFrames. Values are
+-- sung pitch in semitones (including the reference pitch offset); frames
+-- without pitch come back as false. An empty array means SV has not
+-- finished computing pitch yet.
+local function handleGetComputedPitch(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local numFrames = params.numFrames
+  if type(numFrames) ~= "number" or numFrames < 1 or numFrames > MAX_PITCH_FRAMES then
+    error("numFrames must be between 1 and " .. MAX_PITCH_FRAMES, 0)
+  end
+  if type(params.intervalBlick) ~= "number" or params.intervalBlick <= 0 then
+    error("intervalBlick must be positive", 0)
+  end
+  local raw = SV:getComputedPitchForGroup(ref, params.startBlick, params.intervalBlick, numFrames)
+  local values = {}
+  local complete = raw ~= nil and next(raw) ~= nil
+  if complete then
+    -- nil entries would make a sparse table that JSON cannot encode.
+    for i = 1, numFrames do
+      local v = raw[i]
+      if type(v) == "number" and v == v then
+        values[i] = v
+      else
+        values[i] = false
+      end
+    end
+  end
+  return {
+    group = refIndex,
+    pitchOffset = ref:getPitchOffset(),
+    complete = complete,
+    values = values
+  }
+end
+
+local function isPitchCurve(control)
+  local ok = pcall(function() return control:getPoints() end)
+  return ok
+end
+
+local function pitchControlTable(control, index, timeOffset)
+  local anchorPos = control:getPosition()
+  local anchorPitch = control:getPitch()
+  local entry = {
+    index = index,
+    position = anchorPos + timeOffset,
+    pitch = anchorPitch
+  }
+  if isPitchCurve(control) then
+    entry.type = "curve"
+    local points = {}
+    for _, p in ipairs(control:getPoints()) do
+      table.insert(points, { anchorPos + p[1] + timeOffset, anchorPitch + p[2] })
+    end
+    entry.points = points
+  else
+    entry.type = "point"
+  end
+  return entry
+end
+
+-- Time span (absolute) covered by a control, for range filtering.
+local function pitchControlSpan(entry)
+  if entry.type == "curve" and #entry.points > 0 then
+    return entry.points[1][1], entry.points[#entry.points][1]
+  end
+  return entry.position, entry.position
+end
+
+local function listPitchControls(group, timeOffset, startBlick, endBlick)
+  local list = {}
+  for i = 1, group:getNumPitchControls() do
+    local entry = pitchControlTable(group:getPitchControl(i), i, timeOffset)
+    local first, last = pitchControlSpan(entry)
+    if (startBlick == nil or last >= startBlick) and (endBlick == nil or first < endBlick) then
+      table.insert(list, entry)
+    end
+  end
+  return list
+end
+
+-- params: track, group?, startBlick?, endBlick? (overlap filter).
+local function handleGetPitchControls(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    totalControls = group:getNumPitchControls(),
+    controls = listPitchControls(group, ref:getTimeOffset(), params.startBlick, params.endBlick)
+  }
+end
+
+-- params: track, group?, curves: array of {points: array of [blick, pitch]}
+-- (absolute blicks, note-space pitch, ascending time, at least 2 points).
+local function handleAddPitchCurves(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  if type(params.curves) ~= "table" or #params.curves == 0 then
+    error("No curves provided", 0)
+  end
+  local minStart, maxEnd
+  for c, curve in ipairs(params.curves) do
+    local points = curve.points
+    if type(points) ~= "table" or #points < 2 then
+      error("Curve " .. c .. " needs at least 2 points", 0)
+    end
+    for k, p in ipairs(points) do
+      if type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number" then
+        error("Curve " .. c .. " point " .. k .. " must be [blick, pitch]", 0)
+      end
+      if k > 1 and p[1] <= points[k - 1][1] then
+        error("Curve " .. c .. " points must have ascending times", 0)
+      end
+    end
+    if minStart == nil or points[1][1] < minStart then minStart = points[1][1] end
+    if maxEnd == nil or points[#points][1] > maxEnd then maxEnd = points[#points][1] end
+  end
+
+  project:newUndoRecord()
+  for _, curve in ipairs(params.curves) do
+    local points = curve.points
+    local anchorPos = points[1][1] - timeOffset
+    local anchorPitch = points[1][2]
+    local relative = {}
+    for _, p in ipairs(points) do
+      table.insert(relative, { p[1] - timeOffset - anchorPos, p[2] - anchorPitch })
+    end
+    local control = SV:create("PitchControlCurve")
+    control:setPosition(anchorPos)
+    control:setPitch(anchorPitch)
+    control:setPoints(relative)
+    group:addPitchControl(control)
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    addedCount = #params.curves,
+    totalControls = group:getNumPitchControls(),
+    controls = listPitchControls(group, timeOffset, minStart, maxEnd + 1)
+  }
+end
+
+-- params: track, group?, indexes: array of 1-based pitch control indices.
+local function handleDeletePitchControls(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  if type(params.indexes) ~= "table" or #params.indexes == 0 then
+    error("No pitch control indexes provided", 0)
+  end
+  local seen = {}
+  for _, i in ipairs(params.indexes) do
+    if type(i) ~= "number" or i < 1 or i > group:getNumPitchControls() or i % 1 ~= 0 then
+      error("Pitch control " .. tostring(i) .. " does not exist (group has " ..
+        group:getNumPitchControls() .. ")", 0)
+    end
+    if seen[i] then
+      error("Duplicate pitch control index " .. i, 0)
+    end
+    seen[i] = true
+  end
+  local sorted = { table.unpack(params.indexes) }
+  table.sort(sorted, function(a, b) return a > b end)
+  project:newUndoRecord()
+  for _, i in ipairs(sorted) do
+    group:removePitchControl(i)
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    deletedCount = #sorted,
+    totalControls = group:getNumPitchControls()
+  }
+end
+
 -- params: name?. Returns the new 1-based track index.
 local function handleAddTrack(params)
   local project = SV:getProject()
@@ -1079,6 +1273,10 @@ local handlers = {
   set_language = handleSetLanguage,
   get_note_attributes = handleGetNoteAttributes,
   set_note_attributes = handleSetNoteAttributes,
+  get_computed_pitch = handleGetComputedPitch,
+  get_pitch_controls = handleGetPitchControls,
+  add_pitch_curves = handleAddPitchCurves,
+  delete_pitch_controls = handleDeletePitchControls,
   create_group = handleCreateGroup,
   add_track = handleAddTrack,
   set_time_signature = handleSetTimeSignature

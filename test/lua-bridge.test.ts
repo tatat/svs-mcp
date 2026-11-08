@@ -336,6 +336,57 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
     });
   });
 
+  it("samples computed pitch with gaps as false", async () => {
+    const QUARTER = 705_600_000;
+    const result = (await client.request("get_computed_pitch", {
+      track: 1,
+      startBlick: 0,
+      intervalBlick: QUARTER / 2,
+      numFrames: 8,
+    })) as { complete: boolean; pitchOffset: number; values: Array<number | false> };
+    expect(result.complete).toBe(true);
+    expect(result.pitchOffset).toBe(0);
+    expect(result.values).toHaveLength(8);
+    expect(result.values[0]).toBeCloseTo(60, 5);
+    expect(result.values[7]).toBe(false); // beat 4 has no note
+  });
+
+  it("adds, lists and deletes pitch curves in absolute time", async () => {
+    const QUARTER = 705_600_000;
+    const added = (await client.request("add_pitch_curves", {
+      track: 1,
+      curves: [
+        { points: [[QUARTER, 62], [QUARTER + QUARTER / 2, 62.5], [2 * QUARTER, 62]] },
+        { points: [[0, 60], [QUARTER / 2, 60]] },
+      ],
+    })) as { addedCount: number; totalControls: number };
+    expect(added).toMatchObject({ addedCount: 2, totalControls: 2 });
+
+    const listed = (await client.request("get_pitch_controls", { track: 1 })) as {
+      controls: Array<{ index: number; type: string; points: number[][] }>;
+    };
+    expect(listed.controls.map((c) => c.type)).toEqual(["curve", "curve"]);
+    // Sorted by position: the curve at 0 comes first.
+    expect(listed.controls[0]!.points).toEqual([[0, 60], [QUARTER / 2, 60]]);
+    expect(listed.controls[1]!.points).toEqual([
+      [QUARTER, 62],
+      [QUARTER + QUARTER / 2, 62.5],
+      [2 * QUARTER, 62],
+    ]);
+
+    const inRange = (await client.request("get_pitch_controls", {
+      track: 1,
+      startBlick: QUARTER,
+    })) as { controls: unknown[] };
+    expect(inRange.controls).toHaveLength(1);
+
+    const deleted = (await client.request("delete_pitch_controls", {
+      track: 1,
+      indexes: [1],
+    })) as { deletedCount: number; totalControls: number };
+    expect(deleted).toMatchObject({ deletedCount: 1, totalControls: 1 });
+  });
+
   it("rejects an invalid track index", async () => {
     await expect(client.request("get_notes", { track: 9 })).rejects.toThrow(
       /Track 9 does not exist/,

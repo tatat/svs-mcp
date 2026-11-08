@@ -16,8 +16,9 @@ tool list and docs/lyrics-workflow.md / docs/meter-inference.md for the workflow
 - Language: TypeScript (Node.js) for the MCP server, Lua for the bridge script that runs inside SV.
 - Transport to SV: file bridge under `~/.svs-mcp/bridge/` (SV's scripting API has no network access).
 - Target: SV Studio **V2 only**, **macOS only**, **local build only** (not published to npm).
-- Scope: lyric/note CRUD and phoneme/pronunciation control. Tracks, tempo, time signatures and
-  parameter curves are out of scope.
+- Scope: lyric/note CRUD and phoneme/pronunciation control, plus per-note voice attributes and
+  flattening residual pitch wobble with pen-tool pitch curves. Tempo and parameter automation
+  (Pitch Deviation, Vibrato Envelope, ...) are out of scope.
 
 ## Conventions
 
