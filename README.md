@@ -84,8 +84,7 @@ To remove everything, `npm run uninstall-sv`.
 | `set_language` | Per-note language override for mixed-language lyrics |
 | `get_note_attributes` | Read per-note voice attributes (per-phoneme strength/timing, vibrato, …) |
 | `set_note_attributes` | Write them — e.g. copy a hand-tuned note to the other repeats of a phrase |
-| `analyze_pitch_wobble` | Find sustained notes whose generated pitch still wavers (residual vibrato) |
-| `flatten_pitch` | Flatten it with a pen-tool pitch curve shaped like a hand-drawn one |
+| `flatten_pitch` | Flatten residual vibrato on given notes with a pen-tool pitch curve shaped like a hand-drawn one |
 | `get_pitch_controls` | List pen-tool pitch curves / anchor points (optionally with points) |
 | `add_pitch_curves` / `delete_pitch_controls` | Write raw pitch curves (e.g. copy a hand-drawn one) / delete them |
 

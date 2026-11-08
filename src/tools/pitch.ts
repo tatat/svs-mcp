@@ -1,7 +1,8 @@
 /**
- * Pitch tools: find residual wobble in SV's generated pitch and flatten it
- * with pen-tool pitch curves (PitchControlCurve), plus raw access to pitch
- * controls so hand-drawn curves can be inspected and copied.
+ * Pitch tools: flatten residual vibrato on notes the user names with pen-tool
+ * pitch curves (PitchControlCurve), plus raw access to pitch controls so
+ * hand-drawn curves can be inspected and copied. There is deliberately no
+ * auto-detection tool: targets are chosen by ear, per request.
  */
 
 import { z } from "zod";
@@ -17,7 +18,6 @@ import {
 import {
   QUARTER,
   blickToMusical,
-  blickToNoteValue,
   formatPitch,
   musicalToBlick,
   noteValueToBlick,
@@ -160,107 +160,6 @@ function restAfter(sung: WobbleNote[], note: WobbleNote): number {
 }
 
 export function registerPitchTools(server: McpServer, bridge: BridgeClient): void {
-  server.registerTool(
-    "analyze_pitch_wobble",
-    {
-      description:
-        "Find sustained notes whose generated pitch still wavers (e.g. residual " +
-        "vibrato left even with the Vibrato Envelope at 0). For each note at " +
-        "least `minDuration` long, samples SV's computed pitch inside the note's " +
-        "steady part (transitions at both ends excluded), separates the " +
-        "vibrato-rate oscillation from slow movement with a ~0.2 s moving " +
-        "average, and reports the oscillation (`wobbleCents`, peak-to-peak), " +
-        "the number of `wobbles`, where it starts (`wobbleFrom`) and the slow " +
-        "`driftCents`. Notes with wobbleCents >= `thresholdCents` and at least " +
-        "`minWobbles` wobbles are listed, largest first. Feed the " +
-        "chosen indices to flatten_pitch. If `complete` is false SV was still " +
-        "computing pitch — retry in a moment.",
-      inputSchema: {
-        track: trackSchema,
-        group: groupSchema,
-        fromMeasure: z.number().int().min(1).optional().describe("First measure (1-based, inclusive)"),
-        toMeasure: z.number().int().min(1).optional().describe("Last measure (1-based, inclusive)"),
-        minDuration: noteValueSchema
-          .optional()
-          .describe('Shortest note to analyze, as a note value (default "1/8.")'),
-        thresholdCents: z
-          .number()
-          .min(0)
-          .optional()
-          .describe("Minimum oscillation (peak-to-peak) to report (default 15 cents)"),
-        minWobbles: z
-          .number()
-          .int()
-          .min(0)
-          .optional()
-          .describe("Minimum number of wobbles (vibrato cycles) to report (default 3)"),
-      },
-    },
-    async ({ track, group, fromMeasure, toMeasure, minDuration, thresholdCents, minWobbles }) => {
-      try {
-        const axis = (await bridge.request("get_time_axis")) as {
-          timeSignatures: TimeSignature[];
-          tempo: Array<{ positionBlick: number; bpm: number }>;
-        };
-        const signatures = axis.timeSignatures;
-        const base = { track, ...(group !== undefined && { group }) };
-        const notesResult = (await bridge.request("get_notes", {
-          ...base,
-          ...measureRange(signatures, fromMeasure, toMeasure),
-        })) as NotesResult;
-        const minDur = noteValueToBlick(minDuration ?? "1/8.");
-        const threshold = thresholdCents ?? 15;
-        const wobblesNeeded = minWobbles ?? 3;
-        const sung = notesResult.notes.filter((n) => n.phonemes !== "br");
-        const restAfterOf = (note: WobbleNote) => restAfter(sung, note);
-        const candidates = notesResult.notes.filter(
-          (n) => n.duration >= minDur && n.lyrics !== "-" && n.phonemes !== "br",
-        );
-        if (candidates.length === 0) {
-          return ok({ group: notesResult.group, complete: true, analyzed: 0, notes: [] });
-        }
-        const start = Math.min(...candidates.map((n) => n.onset));
-        const end = Math.max(...candidates.map((n) => n.onset + n.duration));
-        const { samples, pitchOffset, complete } = await sampleComputedPitch(bridge, base, start, end);
-
-        const reported = [];
-        for (const note of candidates) {
-          const window = detectionWindow(note, restAfterOf(note));
-          // ~0.2 s moving average: one cycle of a typical 5 Hz vibrato.
-          const smooth = smoothBlickAt(axis.tempo, note.onset);
-          const stats = wobbleStats(samples, window, note.pitch + pitchOffset, smooth);
-          if (!stats) continue;
-          const wobbles = Math.round(stats.crossings / 2);
-          if (stats.wobbleCents < threshold || wobbles < wobblesNeeded) continue;
-          reported.push({
-            index: note.index,
-            lyrics: note.lyrics,
-            pitch: formatPitch(note.pitch),
-            position: blickToMusical(note.onset, signatures).display,
-            duration: blickToNoteValue(note.duration),
-            wobbleCents: round1(stats.wobbleCents),
-            wobbles,
-            wobbleFrom: blickToMusical(stats.wobbleStart, signatures).display,
-            wobbleFromOffset: blickToNoteValue(stats.wobbleStart - note.onset),
-            driftCents: round1(stats.driftCents),
-            meanCents: round1(stats.meanCents),
-          });
-        }
-        reported.sort((a, b) => b.wobbleCents - a.wobbleCents);
-        return ok({
-          group: notesResult.group,
-          complete,
-          analyzed: candidates.length,
-          thresholdCents: threshold,
-          minWobbles: wobblesNeeded,
-          notes: reported,
-        });
-      } catch (error) {
-        return fail(error);
-      }
-    },
-  );
-
   server.registerTool(
     "flatten_pitch",
     {

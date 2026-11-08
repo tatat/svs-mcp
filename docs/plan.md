@@ -14,7 +14,7 @@ An MCP server for Synthesizer V Studio (SV). Primary goal: **AI-driven input of 
 | Platform | macOS only (no Windows support) |
 | Distribution | Local build only (no npm publish) |
 
-Out of scope (future work): changing tempo, parameter automation editing (Pitch Deviation, Vibrato Envelope, loudness, etc.), note group operations. Pitch control curves (the pen tool) were promoted into scope for one job: residual vibrato survives a Vibrato Envelope of 0 and users flatten it by hand, so `analyze_pitch_wobble` / `flatten_pitch` automate that, with raw `get_pitch_controls` / `add_pitch_curves` / `delete_pitch_controls` for inspecting and copying hand-drawn curves.
+Out of scope (future work): changing tempo, parameter automation editing (Pitch Deviation, Vibrato Envelope, loudness, etc.), note group operations. Pitch control curves (the pen tool) were promoted into scope for one job: residual vibrato survives a Vibrato Envelope of 0 and users flatten it by hand, so `flatten_pitch` automates that for notes the user names (an auto-detection tool was tried and dropped: targets are picked by ear, per request), with raw `get_pitch_controls` / `add_pitch_curves` / `delete_pitch_controls` for inspecting and copying hand-drawn curves.
 
 ## Background: SV Scripting API Findings
 
@@ -92,7 +92,6 @@ Read:
 | `get_notes` | Notes of a track/group, filterable by measure range. Returns lyrics, pitch (MIDI number and note name like C4), onset/duration (musical + blicks), user-specified phonemes |
 | `get_phrases` | Phrase analysis: rest-based splitting, note counts, section-break flags, and shape labels marking repeated melodies (see docs/lyrics-workflow.md) |
 | `get_phonemes` | Actual synthesis phonemes via `SV.getPhonemesForGroup` (for pronunciation checks) |
-| `analyze_pitch_wobble` | Samples `SV.getComputedPitchForGroup` per sustained note, removes slow movement with a ~0.2 s moving average and reports the remaining oscillation (cents, wobble count, where it starts). SV returns 0 where there is no voice; treated as missing |
 | `get_pitch_controls` | Pen-tool pitch curves (span, pitch range, optional points as absolute blick + note-space pitch) and pitch anchor points |
 | `get_note_attributes` | Per-note voice attributes via `Note#getAttributes`: per-phoneme `leftOffset`/`position`/`activity`/`strength`, vibrato modulation, expression pad, etc. NaN ("use the default") travels as the string `"NaN"` |
 
@@ -108,7 +107,7 @@ Write:
 | `set_lyrics` | **Lyric flow-in**: start index + array of syllables, assigned to consecutive notes. Japanese: one kana per note; `-` extends the previous vowel (SV convention passed through) |
 | `set_phonemes` | Per-note phoneme override (space-separated, e.g. `"k a"`). Empty string resets |
 | `set_language` | Per-note language override (for mixed Japanese/English songs) |
-| `flatten_pitch` | Draws the curve a user would draw by hand (modelled on real hand-drawn curves): flat at the note pitch from just before the detected wobble to just before the note end; with a rest after (breath notes count as rest) it continues ~1/16 past the end with an eased ~35-cent fall, otherwise it stops 1/8 beat early so SV keeps its transition |
+| `flatten_pitch` | Draws the curve a user would draw by hand (modelled on real hand-drawn curves): flat at the note pitch from just before the wobble (found by sampling `SV.getComputedPitchForGroup` and removing slow movement with a ~0.2 s moving average; SV returns 0 where there is no voice, treated as missing) to just before the note end; with a rest after (breath notes count as rest) it continues ~1/16 past the end with an eased ~35-cent fall, otherwise it stops 1/8 beat early so SV keeps its transition |
 | `add_pitch_curves` / `delete_pitch_controls` | Raw curve writes (absolute blick + pitch points) and deletion, e.g. to copy a hand-drawn curve to a repeated phrase |
 | `set_note_attributes` | Partial `Note#setAttributes` per note. Main use: copy a hand-tuned note (e.g. phoneme strength) onto the other occurrences of the same phrase; `"NaN"` resets a value |
 | `set_time_signature` | Add/update/remove measure marks so SV's grid matches the music (see docs/meter-inference.md) |
