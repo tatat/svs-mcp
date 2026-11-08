@@ -182,7 +182,7 @@ export function registerPitchTools(server: McpServer, bridge: BridgeClient): voi
         toMeasure: z.number().int().min(1).optional().describe("Last measure (1-based, inclusive)"),
         minDuration: noteValueSchema
           .optional()
-          .describe('Shortest note to analyze, as a note value (default "1/4")'),
+          .describe('Shortest note to analyze, as a note value (default "1/8.")'),
         thresholdCents: z
           .number()
           .min(0)
@@ -208,7 +208,7 @@ export function registerPitchTools(server: McpServer, bridge: BridgeClient): voi
           ...base,
           ...measureRange(signatures, fromMeasure, toMeasure),
         })) as NotesResult;
-        const minDur = noteValueToBlick(minDuration ?? "1/4");
+        const minDur = noteValueToBlick(minDuration ?? "1/8.");
         const threshold = thresholdCents ?? 15;
         const wobblesNeeded = minWobbles ?? 3;
         const sung = notesResult.notes.filter((n) => n.phonemes !== "br");

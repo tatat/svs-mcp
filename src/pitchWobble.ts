@@ -47,7 +47,7 @@ export function steadyWindow(
 }
 
 /** Rest long enough after a note for a release tail (instead of a transition). */
-export const MIN_REST_FOR_RELEASE = QUARTER / 8;
+export const MIN_REST_FOR_RELEASE = QUARTER / 2;
 
 /**
  * Window in which to look for wobble: the steady window, but running up to
