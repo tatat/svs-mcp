@@ -82,6 +82,8 @@ To remove everything, `npm run uninstall-sv`.
 | `get_phonemes` | Inspect the phonemes SV will actually sing |
 | `set_phonemes` | Override phonemes per note (`"k a"`); empty string resets |
 | `set_language` | Per-note language override for mixed-language lyrics |
+| `get_note_attributes` | Read per-note voice attributes (per-phoneme strength/timing, vibrato, …) |
+| `set_note_attributes` | Write them — e.g. copy a hand-tuned note to the other repeats of a phrase |
 
 Positions and durations use musical notation (1-based measures/beats, note values
 like `1/8` or dotted `1/8.`); the server converts to SV's internal blicks.

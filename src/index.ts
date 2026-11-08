@@ -10,6 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { BridgeClient } from "./bridge.js";
 import { registerAnalysisTools } from "./tools/analysis.js";
+import { registerAttributeTools } from "./tools/attributes.js";
 import { registerEditorTools } from "./tools/editor.js";
 import { registerLyricTools } from "./tools/lyrics.js";
 import { registerNoteTools } from "./tools/notes.js";
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   registerNoteTools(server, bridge);
   registerLyricTools(server, bridge);
   registerPhonemeTools(server, bridge);
+  registerAttributeTools(server, bridge);
   registerAnalysisTools(server, bridge);
   registerEditorTools(server);
 

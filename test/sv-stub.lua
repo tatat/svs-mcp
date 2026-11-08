@@ -73,6 +73,16 @@ local function makeNote()
   function note:setPhonemes(phonemes) self.phonemes = phonemes end
   function note:getLanguageOverride() return self.languageOverride or "" end
   function note:setLanguageOverride(language) self.languageOverride = language end
+  -- Attributes: NaN means "use the default", like the real API.
+  note.attributes = { dF0VbrMod = 0 / 0, muted = false, phonemes = {} }
+  function note:getAttributes()
+    local copy = {}
+    for k, v in pairs(self.attributes) do copy[k] = v end
+    return copy
+  end
+  function note:setAttributes(attrs)
+    for k, v in pairs(attrs) do self.attributes[k] = v end
+  end
   return note
 end
 

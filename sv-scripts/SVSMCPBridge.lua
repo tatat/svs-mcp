@@ -952,6 +952,107 @@ local function handleSetTimeSignature(params)
   return { timeSignatures = timeSignatures }
 end
 
+-- Note attributes (Note#getAttributes / #setAttributes) use NaN for "not
+-- set, use the default". JSON cannot carry NaN, so it travels as the string
+-- "NaN" in both directions.
+local NAN_TOKEN = "NaN"
+
+local function attrsToJson(value)
+  if type(value) == "number" and value ~= value then
+    return NAN_TOKEN
+  end
+  if type(value) == "table" then
+    local out = {}
+    for k, v in pairs(value) do
+      out[k] = attrsToJson(v)
+    end
+    return out
+  end
+  return value
+end
+
+local function attrsFromJson(value)
+  if value == NAN_TOKEN then
+    return 0 / 0
+  end
+  if type(value) == "table" then
+    local out = {}
+    for k, v in pairs(value) do
+      out[k] = attrsFromJson(v)
+    end
+    return out
+  end
+  return value
+end
+
+local function noteAttributesTable(note, index, timeOffset)
+  return {
+    index = index,
+    lyrics = note:getLyrics(),
+    phonemes = note:getPhonemes(),
+    onset = note:getOnset() + timeOffset,
+    attributes = attrsToJson(note:getAttributes())
+  }
+end
+
+local function checkNoteIndex(group, i)
+  if type(i) ~= "number" or i < 1 or i > group:getNumNotes() or i % 1 ~= 0 then
+    error("Note " .. tostring(i) .. " does not exist (group has " ..
+      group:getNumNotes() .. " note(s))", 0)
+  end
+end
+
+-- params: track, group?, indexes: array of 1-based note indices.
+local function handleGetNoteAttributes(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  if type(params.indexes) ~= "table" or #params.indexes == 0 then
+    error("No note indexes provided", 0)
+  end
+  local notes = {}
+  for _, i in ipairs(params.indexes) do
+    checkNoteIndex(group, i)
+    table.insert(notes, noteAttributesTable(group:getNote(i), i, timeOffset))
+  end
+  return { group = refIndex, groupName = group:getName(), notes = notes }
+end
+
+-- params: track, group?, notes: array of {index, attributes}. Attributes are
+-- partial: only the given properties change (Note#setAttributes semantics).
+local function handleSetNoteAttributes(params)
+  local project = SV:getProject()
+  local track = trackByIndex(project, params.track)
+  local ref, refIndex = groupRefByIndex(track, params.group)
+  local group = ref:getTarget()
+  local timeOffset = ref:getTimeOffset()
+  if type(params.notes) ~= "table" or #params.notes == 0 then
+    error("No notes provided", 0)
+  end
+  for _, edit in ipairs(params.notes) do
+    checkNoteIndex(group, edit.index)
+    if type(edit.attributes) ~= "table" then
+      error("Note " .. tostring(edit.index) .. ": attributes must be an object", 0)
+    end
+  end
+
+  project:newUndoRecord()
+  local notes = {}
+  for _, edit in ipairs(params.notes) do
+    local note = group:getNote(edit.index)
+    note:setAttributes(attrsFromJson(edit.attributes))
+    table.insert(notes, noteAttributesTable(note, edit.index, timeOffset))
+  end
+  return {
+    group = refIndex,
+    groupName = group:getName(),
+    updatedCount = #params.notes,
+    notes = notes
+  }
+end
+
 -- params: name?. Returns the new 1-based track index.
 local function handleAddTrack(params)
   local project = SV:getProject()
@@ -976,6 +1077,8 @@ local handlers = {
   get_phonemes = handleGetPhonemes,
   set_phonemes = handleSetPhonemes,
   set_language = handleSetLanguage,
+  get_note_attributes = handleGetNoteAttributes,
+  set_note_attributes = handleSetNoteAttributes,
   create_group = handleCreateGroup,
   add_track = handleAddTrack,
   set_time_signature = handleSetTimeSignature

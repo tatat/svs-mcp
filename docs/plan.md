@@ -92,6 +92,7 @@ Read:
 | `get_notes` | Notes of a track/group, filterable by measure range. Returns lyrics, pitch (MIDI number and note name like C4), onset/duration (musical + blicks), user-specified phonemes |
 | `get_phrases` | Phrase analysis: rest-based splitting, note counts, section-break flags, and shape labels marking repeated melodies (see docs/lyrics-workflow.md) |
 | `get_phonemes` | Actual synthesis phonemes via `SV.getPhonemesForGroup` (for pronunciation checks) |
+| `get_note_attributes` | Per-note voice attributes via `Note#getAttributes`: per-phoneme `leftOffset`/`position`/`activity`/`strength`, vibrato modulation, expression pad, etc. NaN ("use the default") travels as the string `"NaN"` |
 
 Write:
 
@@ -105,6 +106,7 @@ Write:
 | `set_lyrics` | **Lyric flow-in**: start index + array of syllables, assigned to consecutive notes. Japanese: one kana per note; `-` extends the previous vowel (SV convention passed through) |
 | `set_phonemes` | Per-note phoneme override (space-separated, e.g. `"k a"`). Empty string resets |
 | `set_language` | Per-note language override (for mixed Japanese/English songs) |
+| `set_note_attributes` | Partial `Note#setAttributes` per note. Main use: copy a hand-tuned note (e.g. phoneme strength) onto the other occurrences of the same phrase; `"NaN"` resets a value |
 | `set_time_signature` | Add/update/remove measure marks so SV's grid matches the music (see docs/meter-inference.md) |
 
 User interaction:
@@ -151,5 +153,5 @@ svs-mcp/
 1. **M1 — Foundation**: scaffolding, bridge protocol (TS + Lua sides), `ping` / `get_project_info`. Verify end-to-end with a real SV instance.
 2. **M2 — Reading and note input**: `get_notes` / `insert_notes` and time conversion (`time.ts`). Unit tests.
 3. **M3 — Editing and lyric flow-in**: `update_notes` / `delete_notes` / `set_lyrics`.
-4. **M4 — Pronunciation control**: `get_phonemes` / `set_phonemes` / `set_language`.
+4. **M4 — Pronunciation control**: `get_phonemes` / `set_phonemes` / `set_language`, later `get_note_attributes` / `set_note_attributes` (phoneme strength and timing).
 5. **M5 — Polish**: README (setup: place Lua scripts → run in SV → configure MCP client), error message quality.

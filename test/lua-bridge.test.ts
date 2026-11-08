@@ -294,6 +294,48 @@ describe.skipIf(!hasLua)("Lua bridge (via SV stub)", () => {
     expect(main.totalNotes).toBe(3);
   });
 
+  it("copies note attributes, carrying NaN as the string \"NaN\"", async () => {
+    type AttrResult = {
+      notes: Array<{ index: number; attributes: Record<string, unknown> }>;
+    };
+    const before = (await client.request("get_note_attributes", {
+      track: 1,
+      indexes: [1],
+    })) as AttrResult;
+    expect(before.notes[0]!.attributes).toEqual({ dF0VbrMod: "NaN", muted: false, phonemes: [] });
+
+    const tuned = {
+      dF0VbrMod: 0.5,
+      phonemes: [
+        { leftOffset: -0.02, position: 0.5, activity: 1, strength: 1.4 },
+        { leftOffset: 0, position: 0.5, activity: 1, strength: 0.8 },
+      ],
+    };
+    await client.request("set_note_attributes", {
+      track: 1,
+      notes: [{ index: 1, attributes: tuned }],
+    });
+    const source = (await client.request("get_note_attributes", {
+      track: 1,
+      indexes: [1],
+    })) as AttrResult;
+    expect(source.notes[0]!.attributes).toMatchObject(tuned);
+
+    // Copy onto note 2, then reset its vibrato back to the default.
+    await client.request("set_note_attributes", {
+      track: 1,
+      notes: [{ index: 2, attributes: source.notes[0]!.attributes }],
+    });
+    const copied = (await client.request("set_note_attributes", {
+      track: 1,
+      notes: [{ index: 2, attributes: { dF0VbrMod: "NaN" } }],
+    })) as AttrResult;
+    expect(copied.notes[0]!.attributes).toMatchObject({
+      dF0VbrMod: "NaN",
+      phonemes: tuned.phonemes,
+    });
+  });
+
   it("rejects an invalid track index", async () => {
     await expect(client.request("get_notes", { track: 9 })).rejects.toThrow(
       /Track 9 does not exist/,
